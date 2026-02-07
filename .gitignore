@@ -1,0 +1,42 @@
+
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# Environment variables
+.env
+.env.local
+homeenv/
+__pycache__/
+.env
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+home_delivery.log
+
+# Local files
+packing_slips/
+barcodes/
+email_queue.json
+
+# OS
+.DS_Store
+Thumbs.db
+EOF

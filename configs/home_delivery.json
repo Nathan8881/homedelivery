@@ -1,0 +1,461 @@
+{
+  "form_info": {
+    "form_id": "260284514759868",
+    "form_name": "Home Delivery Order",
+    "description": "Config-driven with Google Drive upload + Email + Mobile Message SMS"
+  },
+  
+  "email": {
+    "enabled": true,
+    "testing_mode": false,
+    "sender_name": "Tommy Sugo",
+    "sender_email": "orders@tommysugo.online",
+    "recipient_email": ["arrehman445511@gmail.com",
+                        "marketing.tommysugo@gmail.com"],
+    "subject_template": "Packing Slips Batch - {date}",
+    "body_template": {
+      "title": "Packing Slips - Daily Batch",
+      "greeting": "Hello Team,",
+      "intro": "Please find the packing slips for today's deliveries:",
+      "footer": "Best regards,<br>Tommy Sugo Automated System"
+    },
+    "schedule": {
+      "testing": {
+        "send_immediately": true,
+        "note": "In testing mode, emails are sent immediately after PDF upload to Google Drive"
+      },
+      "production": [
+        {
+          "hour": 13,
+          "minute": 0,
+          "label": "1 PM Batch"
+        },
+        {
+          "hour": 20,
+          "minute": 0,
+          "label": "8 PM Batch"
+        }
+      ]
+    }
+  },
+
+  "sms": {
+    "enabled": false,
+    "testing_mode": true,
+    "username": "",
+    "password": "",
+    "sender_id": "",
+    "message_template": "Hi {customer_name}, your Tommy Sugo order is out for delivery and will arrive shortly. Thank you!",
+    "_notes": {
+      "service": "Mobile Message API (https://api.mobilemessage.com.au)",
+      "testing_mode": "true = log only (no actual SMS), false = send real SMS",
+      "username": "API username from Mobile Message account",
+      "password": "API password from Mobile Message account", 
+      "sender_id": "Registered sender ID (phone number or business name)",
+      "message_template": "Use {customer_name} placeholder for personalization"
+    }
+  },
+  
+  "pdf": {
+    "global_style": {
+      "font_family": "Helvetica",
+      "font_size": 10,
+      "font_color": [44, 62, 80],
+      "page_bg_color": [255, 255, 255],
+      "white_color": [255, 255, 255],
+      "gray_bg_color": [149, 165, 166],
+      "highlight_color": [255, 204, 0],
+      "recommendation_font": "Helvetica-Bold"
+    },
+
+    "sections": {
+      "barcode": {
+        "enabled": true,
+        "x": 30,
+        "width": 150,
+        "height": 50,
+        "_notes": {
+          "x": "Barcode ka left position from page edge",
+          "width": "Barcode width in pixels (reduced to 150 to make room for logo)", 
+          "height": "Barcode height in pixels (reduced to 50)"
+        }
+      },
+
+      "contact_card": {
+        "enabled": true,
+        "filename": "logo1",
+        "extensions": ["jpeg", "jpg", "png"],
+        "x": 280,
+        "width": 240,
+        "height": 85,
+        "size_increase_percent": 60,
+        "y_offset": 40,
+        "spacing_below": -70,
+        "_notes": {
+          "size_increase_percent": "Logo ka size 50% increase (bigger and more visible)",
+          "y_offset": "Logo ko barcode se kitna neeche (20 = thoda gap, not stuck to top)",
+          "spacing_below": "Logo aur title ke beech spacing (3 = very tight)",
+          "x": "Logo ka horizontal position (280 - centered nicely)",
+          "width": "Base width increased to 240 for better visibility",
+          "height": "Base height 85 pixels"
+        }
+      },
+
+      "title": {
+        "enabled": true,
+        "text": "FF PICKUP - {delivery_date} | Invoice #: {invoice_no}",
+        "font_family": "Helvetica-Bold",
+        "font_size": 11,
+        "height": 25,
+        "bg_color": null,
+        "text_color": [0, 0, 0],
+        "alignment": "center",
+        "spacing_below": 0
+      },
+
+      "customer_info": {
+        "enabled": true,
+        "start_x": 40,
+        "label_x_offset": 0,
+        "value_x_offset": 80,
+        "line_height": 14,
+        "_notes": {
+          "value_x_offset": "Label ke baad value kitne pixels pe start hoga (80 = tight spacing, 180 = loose)",
+          "line_height": "Har line ki height in pixels"
+        },
+        "fields_normal_order": [
+          {
+            "key": "customer_name",
+            "label": "To:",
+            "show": true,
+            "highlight": false,
+            "order": 1
+          },
+          {
+            "key": "customer_phone",
+            "label": "Phone No:",
+            "show": true,
+            "highlight": false,
+            "order": 2
+          },
+          {
+            "key": "delivery_address",
+            "label": "Address:",
+            "show": true,
+            "highlight": false,
+            "order": 3
+          },
+          {
+            "key": "courier_note",
+            "label": "Note for courier:",
+            "show": true,
+            "highlight": false,
+            "order": 4
+          }
+        ],
+        "fields_gift_order": [
+          {
+            "key": "gift_recipient",
+            "label": "To:",
+            "show": true,
+            "highlight": false,
+            "order": 1
+          },
+          {
+            "key": "gift_phone",
+            "label": "{gift_recipient} Contact No.:",
+            "label_dynamic": true,
+            "show": true,
+            "highlight": false,
+            "order": 2
+          },
+          {
+            "key": "delivery_address",
+            "label": "Address:",
+            "show": true,
+            "highlight": false,
+            "order": 3
+          },
+          {
+            "key": "customer_name_phone",
+            "label": "Order by:",
+            "show": true,
+            "highlight": false,
+            "order": 4,
+            "combined_format": "{customer_name} | {customer_phone}"
+          },
+          {
+            "key": "courier_note",
+            "label": "Note for courier:",
+            "show": true,
+            "highlight": false,
+            "order": 5
+          }
+        ]
+      },
+
+      "recommendation": {
+        "enabled": true,
+        "start_x": 40,
+        "max_width": 520,
+        "line_height": 14,
+        "font_size": 10,
+        "labels": {
+          "greeting": "Hi {first_name},",
+          "gift_greeting": "Hi {first_name},",
+          "message": "Message",
+          "recommendation": "PS:"
+        },
+        "generic_message_normal": "Thanks for your order.\nWe are here to make your life easier, so here are some ways we can help you further...\n• EASY GIFTING: delivered FREE next business day\n• EASY FUNDRAISING: got a school / club / charity you need to raise funds for?\n• EASY CATERING: from our Nedlands store\n\nEnjoy your meals, and make life a little easier with some quick wins in the kitchen by cooking all our products straight from frozen!!\n\nNathan & the team from Tommy Sugo",
+        "heart_image": {
+          "enabled": true,
+          "filename": "heart",
+          "extensions": ["jpg", "jpeg", "png"],
+          "width": 12,
+          "height": 12
+        },
+        "show_feedback_response": "normal_order_only"
+      },
+
+      "table_and_recycle": {
+        "enabled": true,
+        "table": {
+          "x": 30,
+          "width": 270,
+          "row_height": 20,
+          "spacing_below": 10,
+          "header": {
+            "height": 25,
+            "bg_color": [44, 62, 80],
+            "text_color": [255, 255, 255],
+            "font_family": "Helvetica-Bold",
+            "font_size": 10
+          },
+          "rows": {
+            "even_bg": [248, 249, 250],
+            "odd_bg": [255, 255, 255],
+            "font_family": "Helvetica",
+            "font_size": 9,
+            "line_spacing": 14
+          },
+          "columns": [
+            {
+              "key": "qty",
+              "label": "QTY",
+              "width": 35,
+              "max_chars": 5
+            },
+            {
+              "key": "product_name",
+              "label": "PRODUCT NAME",
+              "width": 175,
+              "max_chars": 28
+            },
+            {
+              "key": "product_code",
+              "label": "CODE",
+              "width": 60,
+              "max_chars": 12
+            }
+          ]
+        },
+        "recycle_logo": {
+          "enabled": true,
+          "filename": "recycle1",
+          "extensions": ["jpeg", "jpg", "png"],
+          "x": 320,
+          "width": 200,
+          "height": 200,
+          "size_reduction_percent": 15
+        }
+      },
+
+      "footer": {
+        "enabled": true,
+        "bg_color": null,
+        "text_color": [0, 0, 0],
+        "font_family": "Helvetica-Bold",
+        "font_size": 11,
+        "height": 30,
+        "spacing_above": 8,
+        "template": {
+          "left": "Total quantity: {total_qty}",
+          "center": "",
+          "right": "BOXES: ___ / __"
+        }
+      },
+
+      "contact_line": {
+        "enabled": true,
+        "text": "Call: 9am-6pm (08) 6186 0077 | Email: Info@tommysugo.com.au | www.tommysugo.com.au",
+        "font_family": "Helvetica",
+        "font_size": 9,
+        "text_color": [0, 0, 0],
+        "alignment": "center",
+        "y_position": "bottom",
+        "margin_bottom": 20
+      }
+    },
+
+    "messages": {
+      "all_products": [
+        "Tommy's Meatballs 500g",
+        "Tommy's Meatballs 1kg",
+        "Beef Cheek Ravioli 1kg",
+        "Macaroni & Cheese 400g",
+        "Meatballs in Sauce 500g",
+        "Spinach & 5 Cheese Arancini Balls 1kg",
+        "Harvey Beef Arancini 1kg",
+        "Mushroom Arancini 1kg",
+        "Tommy's Tiramisu 500g",
+        "Porcini Mushroom & Ricotta Cannelloni 1kg",
+        "Beef Cheek Lasagna 1kg",
+        "Sicilian Beef Cannelloni 1kg",
+        "8 Vegetable Lasagne 1kg",
+        "Harvey Beef Lasagne 1kg",
+        "Creamy Bechamel Lasagna 1kg",
+        "Ricotta & Spinach Cannelloni 1kg",
+        "Harvey Beef Lasagna 400g",
+        "Ricotta & Spinach Cannelloni 400g",
+        "Beef Tortellini Carbonara 400g",
+        "Beef Cheek & Red Wine Ravioli 375g",
+        "Porcini Mushroom Ravioli 375g",
+        "Traditional Gnocchi 375g",
+        "Duck Ravioli 375g",
+        "5 Cheese & Spinach Gnocchi 375g",
+        "Fettuccine 375g",
+        "Baked Ricotta Tortelloni 375g",
+        "Veal Chicken Bacon Tortelloni 375g",
+        "Pumpkin Feta Ravioli 375g",
+        "Napolitana Sauce 500g",
+        "Siciliana Sauce 500g",
+        "Primavera Sauce 500g",
+        "Traditional Bolognese Sauce 500g",
+        "Extra Creamy Carbonara Sauce 500g",
+        "Mushroom Arancini 270g",
+        "Spinach & 5 Cheese Arancini 270g",
+        "Harvey Beef Arancini 270g",
+        "Pumpkin & Feta Croquettes 270g",
+        "Cheese & Spinach Croquettes 270g"
+      ]
+    }
+  },
+
+  "transvirtual": {
+    "enabled": true,
+    "api_key": "",
+    "use_gift_recipient_for_gift_orders": true,
+    "api_url": "https://api.transvirtual.com.au/Api/Consignment",
+    "customer_code": "tsugo",
+    "sender": {
+      "name": "Tommy Sugo C/- Freight Flex",
+      "address": "20 Tarlton Cres",
+      "suburb": "Perth Airport",
+      "postcode": "6105",
+      "email": "info@tommysugo.com.au",
+      "phone": "0424 5050 053"
+    },
+    "service_type": "MCX",
+    "pickup_request": "y",
+    "return_pdf_labels": "y"
+  },
+
+  "openai": {
+    "enabled": true,
+    "api_key": "",
+    "validate_data": true,
+    "generate_feedback_response": true,
+    "generate_recommendations": true
+  },
+  
+  "fields": {
+    "invoice_no": {
+      "jotform_field": "q44_invoiceId",
+      "field_type": "text"
+    },
+    "customer_name": {
+      "jotform_field": "q1_yourName",
+      "field_type": "name_object"
+    },
+    "customer_phone": {
+      "jotform_field": "q19_yourPhone",
+      "field_type": "text"
+    },
+    "customer_email": {
+      "jotform_field": "q2_yourEmail",
+      "field_type": "text"
+    },
+    "delivery_address": {
+      "jotform_field": "q3_deliveryAddress3",
+      "field_type": "address_object"
+    },
+    "delivery_address_line1": {
+      "jotform_field": "q3_deliveryAddress3",
+      "field_type": "address_line1"
+    },
+    "delivery_address_line2": {
+      "jotform_field": "q3_deliveryAddress3",
+      "field_type": "address_line2"
+    },
+    "delivery_suburb": {
+      "jotform_field": "q3_deliveryAddress3",
+      "field_type": "address_suburb"
+    },
+    "delivery_state": {
+      "jotform_field": "q3_deliveryAddress3",
+      "field_type": "address_state"
+    },
+    "delivery_postcode": {
+      "jotform_field": "q3_deliveryAddress3",
+      "field_type": "address_postcode"
+    },
+    "delivery_date": {
+      "jotform_field": "q6_desiredDelivery6",
+      "field_type": "date_object"
+    },
+    "courier_note": {
+      "jotform_field": "q22_anySpecial22",
+      "field_type": "text"
+    },
+    "feedback_enabled": {
+      "jotform_field": "q67_feedback67",
+      "field_type": "text"
+    },
+    "customer_love_note": {
+      "jotform_field": "q68_loveOur",
+      "field_type": "text"
+    },
+    "gift_note": {
+      "jotform_field": "q18_specialGift",
+      "field_type": "text"
+    },
+    "gift_recipient": {
+      "jotform_field": "q21_greetingampamp",
+      "field_type": "text"
+    },
+    "gift_phone": {
+      "jotform_field": "q20_phoneNumber20",
+      "field_type": "text"
+    }
+  },
+  
+  "products": {
+    "jotform_field": "q9_myProducts",
+    "products_key": "products",
+    "columns": [
+      {
+        "name": "qty",
+        "jotform_key": "quantity"
+      },
+      {
+        "name": "product_name",
+        "jotform_key": "productName"
+      },
+      {
+        "name": "product_code",
+        "jotform_key": "productName",
+        "process_function": "extract_product_code"
+      }
+    ]
+  }
+}

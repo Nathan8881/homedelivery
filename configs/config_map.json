@@ -1,0 +1,10 @@
+{
+  "forms": {
+    "260284514759868": {
+      "name": "Home Delivery Order Form",
+      "config_file": "home_delivery.json",
+      "description": "Home delivery customer orders with Transvirtual integration"
+    }
+  },
+  "default_config": "home_delivery.json"
+}
