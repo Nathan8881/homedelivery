@@ -32,14 +32,14 @@
   "schedule": {
     "factory_batch": {
       "times_perth": [
-        {"hour": 9, "minute": 46, "label": "1 PM Batch"},
+        {"hour": 13, "minute": 0, "label": "1 PM Batch"},
         {"hour": 20, "minute": 0, "label": "8 PM Batch"}
       ],
       "note": "Factory ko packing slips bhejne ka waqt — Perth time. Change karo aur app restart karo."
     },
     "customer_notifications": {
       "times_perth": [
-        {"hour": 9, "minute": 29, "label": "6 AM Daily"}
+        {"hour": 6, "minute": 0, "label": "6 AM Daily"}
       ],
       "note": "Customers ko SMS + Email bhejne ka waqt (delivery date pe) — Perth time."
     }
