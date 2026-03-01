@@ -6,6 +6,7 @@ from .email_service import ResendEmailService
 from .google_drive_service import GoogleDriveService
 from .sms_service import MobileMessageService
 from .json_queue import JSONQueueManager
+from .notification_queue import NotificationQueueManager  
 
 __all__ = [
     'generate_barcode',
@@ -14,5 +15,6 @@ __all__ = [
     'ResendEmailService',
     'GoogleDriveService',
     'MobileMessageService',
-    'JSONQueueManager'
+    'JSONQueueManager',
+    'NotificationQueueManager', 
 ]

@@ -1,0 +1,67 @@
+[
+  {
+    "invoice_no": "INV-03ZCPX",
+    "customer_name": "ali rehman",
+    "customer_email": "r11938616@gmail.com",
+    "customer_phone": "3085245168",
+    "consignment_number": "125781",
+    "delivery_date": "2026-03-01",
+    "email_sent": true,
+    "sms_sent": false,
+    "email_sent_at": "2026-03-01T06:29:02.392819",
+    "sms_sent_at": null,
+    "queued_at": "2026-03-01T01:18:29.900982"
+  },
+  {
+    "invoice_no": "INV-Z0D6I8",
+    "customer_name": "ali rehman",
+    "customer_email": "r11938616@gmail.com",
+    "customer_phone": "3085245168",
+    "consignment_number": "125782",
+    "delivery_date": "2026-03-01",
+    "email_sent": true,
+    "sms_sent": false,
+    "email_sent_at": "2026-03-01T06:29:03.632574",
+    "sms_sent_at": null,
+    "queued_at": "2026-03-01T06:14:25.870865"
+  },
+  {
+    "invoice_no": "INV-5JM80V",
+    "customer_name": "ali rehman",
+    "customer_email": "r11938616@gmail.com",
+    "customer_phone": "3085245168",
+    "consignment_number": "125783",
+    "delivery_date": "2026-03-01",
+    "email_sent": true,
+    "sms_sent": false,
+    "email_sent_at": "2026-03-01T06:29:04.920784",
+    "sms_sent_at": null,
+    "queued_at": "2026-03-01T06:16:13.531261"
+  },
+  {
+    "invoice_no": "INV-KUN5ZE",
+    "customer_name": "ali rehman",
+    "customer_email": "r11938616@gmail.com",
+    "customer_phone": "3085245168",
+    "consignment_number": "125784",
+    "delivery_date": "2026-03-01",
+    "email_sent": true,
+    "sms_sent": false,
+    "email_sent_at": "2026-03-01T06:29:06.496705",
+    "sms_sent_at": null,
+    "queued_at": "2026-03-01T06:22:29.120869"
+  },
+  {
+    "invoice_no": "INV-0ERGLV",
+    "customer_name": "abdul rehman",
+    "customer_email": "r11938616@gmail.com",
+    "customer_phone": "3085245168",
+    "consignment_number": "125785",
+    "delivery_date": "2026-03-03",
+    "email_sent": false,
+    "sms_sent": false,
+    "email_sent_at": null,
+    "sms_sent_at": null,
+    "queued_at": "2026-03-01T20:19:50.211296"
+  }
+]

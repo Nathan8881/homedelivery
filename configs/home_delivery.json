@@ -2,60 +2,48 @@
   "form_info": {
     "form_id": "260284514759868",
     "form_name": "Home Delivery Order",
-    "description": "Config-driven with Google Drive upload + Email + Mobile Message SMS"
+    "description": "Config-driven with Google Drive upload + Email + Mobile Message SMS + Customer Notifications"
   },
-  
   "email": {
     "enabled": true,
     "testing_mode": false,
     "sender_name": "Tommy Sugo",
     "sender_email": "orders@tommysugo.online",
-    "recipient_email": ["arrehman445511@gmail.com",
-                        "marketing.tommysugo@gmail.com"],
+    "recipient_emails": [
+      "arrehman445511@gmail.com",
+      "marketing.tommysugo@gmail.com"
+    ],
     "subject_template": "Packing Slips Batch - {date}",
     "body_template": {
       "title": "Packing Slips - Daily Batch",
       "greeting": "Hello Team,",
       "intro": "Please find the packing slips for today's deliveries:",
       "footer": "Best regards,<br>Tommy Sugo Automated System"
-    },
-    "schedule": {
-      "testing": {
-        "send_immediately": true,
-        "note": "In testing mode, emails are sent immediately after PDF upload to Google Drive"
-      },
-      "production": [
-        {
-          "hour": 13,
-          "minute": 0,
-          "label": "1 PM Batch"
-        },
-        {
-          "hour": 20,
-          "minute": 0,
-          "label": "8 PM Batch"
-        }
-      ]
     }
   },
-
   "sms": {
-    "enabled": false,
-    "testing_mode": true,
+    "enabled": true,
+    "testing_mode": false,
     "username": "",
     "password": "",
-    "sender_id": "",
-    "message_template": "Hi {customer_name}, your Tommy Sugo order is out for delivery and will arrive shortly. Thank you!",
-    "_notes": {
-      "service": "Mobile Message API (https://api.mobilemessage.com.au)",
-      "testing_mode": "true = log only (no actual SMS), false = send real SMS",
-      "username": "API username from Mobile Message account",
-      "password": "API password from Mobile Message account", 
-      "sender_id": "Registered sender ID (phone number or business name)",
-      "message_template": "Use {customer_name} placeholder for personalization"
+    "sender_id": "TommySugo",
+    "message_template": "Hi {customer_name},\nYour Tommy Sugo order is now out for delivery and will be arriving at your location shortly.\n\nTo maintain the best quality, we kindly recommend bringing the products inside as soon as they arrive and placing them straight into the freezer.\n\nYou can track your delivery here:\n{tracking_link}\n\nThank you for choosing Tommy Sugo.\n\nWarm regards,\nNathan and the Tommy Sugo Team"
+  },
+  "schedule": {
+    "factory_batch": {
+      "times_perth": [
+        {"hour": 9, "minute": 46, "label": "1 PM Batch"},
+        {"hour": 20, "minute": 0, "label": "8 PM Batch"}
+      ],
+      "note": "Factory ko packing slips bhejne ka waqt — Perth time. Change karo aur app restart karo."
+    },
+    "customer_notifications": {
+      "times_perth": [
+        {"hour": 9, "minute": 29, "label": "6 AM Daily"}
+      ],
+      "note": "Customers ko SMS + Email bhejne ka waqt (delivery date pe) — Perth time."
     }
   },
-  
   "pdf": {
     "global_style": {
       "font_family": "Helvetica",
@@ -67,20 +55,13 @@
       "highlight_color": [255, 204, 0],
       "recommendation_font": "Helvetica-Bold"
     },
-
     "sections": {
       "barcode": {
         "enabled": true,
         "x": 30,
         "width": 150,
-        "height": 50,
-        "_notes": {
-          "x": "Barcode ka left position from page edge",
-          "width": "Barcode width in pixels (reduced to 150 to make room for logo)", 
-          "height": "Barcode height in pixels (reduced to 50)"
-        }
+        "height": 50
       },
-
       "contact_card": {
         "enabled": true,
         "filename": "logo1",
@@ -90,17 +71,8 @@
         "height": 85,
         "size_increase_percent": 60,
         "y_offset": 40,
-        "spacing_below": -70,
-        "_notes": {
-          "size_increase_percent": "Logo ka size 50% increase (bigger and more visible)",
-          "y_offset": "Logo ko barcode se kitna neeche (20 = thoda gap, not stuck to top)",
-          "spacing_below": "Logo aur title ke beech spacing (3 = very tight)",
-          "x": "Logo ka horizontal position (280 - centered nicely)",
-          "width": "Base width increased to 240 for better visibility",
-          "height": "Base height 85 pixels"
-        }
+        "spacing_below": -70
       },
-
       "title": {
         "enabled": true,
         "text": "FF PICKUP - {delivery_date} | Invoice #: {invoice_no}",
@@ -112,88 +84,26 @@
         "alignment": "center",
         "spacing_below": 0
       },
-
       "customer_info": {
         "enabled": true,
         "start_x": 40,
         "label_x_offset": 0,
         "value_x_offset": 80,
         "line_height": 14,
-        "_notes": {
-          "value_x_offset": "Label ke baad value kitne pixels pe start hoga (80 = tight spacing, 180 = loose)",
-          "line_height": "Har line ki height in pixels"
-        },
         "fields_normal_order": [
-          {
-            "key": "customer_name",
-            "label": "To:",
-            "show": true,
-            "highlight": false,
-            "order": 1
-          },
-          {
-            "key": "customer_phone",
-            "label": "Phone No:",
-            "show": true,
-            "highlight": false,
-            "order": 2
-          },
-          {
-            "key": "delivery_address",
-            "label": "Address:",
-            "show": true,
-            "highlight": false,
-            "order": 3
-          },
-          {
-            "key": "courier_note",
-            "label": "Note for courier:",
-            "show": true,
-            "highlight": false,
-            "order": 4
-          }
+          {"key": "customer_name",    "label": "To:",              "show": true, "highlight": false, "order": 1},
+          {"key": "customer_phone",   "label": "Phone No:",        "show": true, "highlight": false, "order": 2},
+          {"key": "delivery_address", "label": "Address:",         "show": true, "highlight": false, "order": 3},
+          {"key": "courier_note",     "label": "Note for courier:","show": true, "highlight": false, "order": 4}
         ],
         "fields_gift_order": [
-          {
-            "key": "gift_recipient",
-            "label": "To:",
-            "show": true,
-            "highlight": false,
-            "order": 1
-          },
-          {
-            "key": "gift_phone",
-            "label": "{gift_recipient} Contact No.:",
-            "label_dynamic": true,
-            "show": true,
-            "highlight": false,
-            "order": 2
-          },
-          {
-            "key": "delivery_address",
-            "label": "Address:",
-            "show": true,
-            "highlight": false,
-            "order": 3
-          },
-          {
-            "key": "customer_name_phone",
-            "label": "Order by:",
-            "show": true,
-            "highlight": false,
-            "order": 4,
-            "combined_format": "{customer_name} | {customer_phone}"
-          },
-          {
-            "key": "courier_note",
-            "label": "Note for courier:",
-            "show": true,
-            "highlight": false,
-            "order": 5
-          }
+          {"key": "gift_recipient",      "label": "To:",              "show": true, "highlight": false, "order": 1},
+          {"key": "gift_phone",          "label": "Contact No:",      "label_dynamic": false, "show": true, "highlight": false, "order": 2},
+          {"key": "delivery_address",    "label": "Address:",         "show": true, "highlight": false, "order": 3},
+          {"key": "customer_name_phone", "label": "Order by:",        "show": true, "highlight": false, "order": 4, "combined_format": "{customer_name} | {customer_phone}"},
+          {"key": "courier_note",        "label": "Note for courier:","show": true, "highlight": false, "order": 5}
         ]
       },
-
       "recommendation": {
         "enabled": true,
         "start_x": 40,
@@ -206,7 +116,7 @@
           "message": "Message",
           "recommendation": "PS:"
         },
-        "generic_message_normal": "Thanks for your order.\nWe are here to make your life easier, so here are some ways we can help you further...\n• EASY GIFTING: delivered FREE next business day\n• EASY FUNDRAISING: got a school / club / charity you need to raise funds for?\n• EASY CATERING: from our Nedlands store\n\nEnjoy your meals, and make life a little easier with some quick wins in the kitchen by cooking all our products straight from frozen!!\n\nNathan & the team from Tommy Sugo",
+        "generic_message_normal": "Thanks for your order.\nWe are here to make your life easier, so here are some ways we can help you further...\n\u2022 EASY GIFTING: delivered FREE next business day\n\u2022 EASY FUNDRAISING: got a school / club / charity you need to raise funds for?\n\u2022 EASY CATERING: from our Nedlands store\n\nEnjoy your meals, and make life a little easier with some quick wins in the kitchen by cooking all our products straight from frozen!!\n\nNathan & the team from Tommy Sugo",
         "heart_image": {
           "enabled": true,
           "filename": "heart",
@@ -216,7 +126,6 @@
         },
         "show_feedback_response": "normal_order_only"
       },
-
       "table_and_recycle": {
         "enabled": true,
         "table": {
@@ -229,34 +138,19 @@
             "bg_color": [44, 62, 80],
             "text_color": [255, 255, 255],
             "font_family": "Helvetica-Bold",
-            "font_size": 10
+            "font_size": 12
           },
           "rows": {
             "even_bg": [248, 249, 250],
             "odd_bg": [255, 255, 255],
             "font_family": "Helvetica",
-            "font_size": 9,
+            "font_size": 11,
             "line_spacing": 14
           },
           "columns": [
-            {
-              "key": "qty",
-              "label": "QTY",
-              "width": 35,
-              "max_chars": 5
-            },
-            {
-              "key": "product_name",
-              "label": "PRODUCT NAME",
-              "width": 175,
-              "max_chars": 28
-            },
-            {
-              "key": "product_code",
-              "label": "CODE",
-              "width": 60,
-              "max_chars": 12
-            }
+            {"key": "qty",          "label": "QTY",          "width": 35,  "max_chars": 5},
+            {"key": "product_name", "label": "PRODUCT NAME", "width": 175, "max_chars": 28},
+            {"key": "product_code", "label": "CODE",         "width": 60,  "max_chars": 12}
           ]
         },
         "recycle_logo": {
@@ -269,7 +163,6 @@
           "size_reduction_percent": 15
         }
       },
-
       "footer": {
         "enabled": true,
         "bg_color": null,
@@ -284,19 +177,17 @@
           "right": "BOXES: ___ / __"
         }
       },
-
       "contact_line": {
         "enabled": true,
         "text": "Call: 9am-6pm (08) 6186 0077 | Email: Info@tommysugo.com.au | www.tommysugo.com.au",
         "font_family": "Helvetica",
-        "font_size": 9,
+        "font_size": 14,
         "text_color": [0, 0, 0],
         "alignment": "center",
         "y_position": "bottom",
         "margin_bottom": 20
       }
     },
-
     "messages": {
       "all_products": [
         "Tommy's Meatballs 500g",
@@ -340,7 +231,6 @@
       ]
     }
   },
-
   "transvirtual": {
     "enabled": true,
     "api_key": "",
@@ -359,7 +249,6 @@
     "pickup_request": "y",
     "return_pdf_labels": "y"
   },
-
   "openai": {
     "enabled": true,
     "api_key": "",
@@ -367,7 +256,6 @@
     "generate_feedback_response": true,
     "generate_recommendations": true
   },
-  
   "fields": {
     "invoice_no": {
       "jotform_field": "q44_invoiceId",
@@ -438,24 +326,13 @@
       "field_type": "text"
     }
   },
-  
   "products": {
     "jotform_field": "q9_myProducts",
     "products_key": "products",
     "columns": [
-      {
-        "name": "qty",
-        "jotform_key": "quantity"
-      },
-      {
-        "name": "product_name",
-        "jotform_key": "productName"
-      },
-      {
-        "name": "product_code",
-        "jotform_key": "productName",
-        "process_function": "extract_product_code"
-      }
+      {"name": "qty",          "jotform_key": "quantity"},
+      {"name": "product_name", "jotform_key": "productName"},
+      {"name": "product_code", "jotform_key": "productName", "process_function": "extract_product_code"}
     ]
   }
 }

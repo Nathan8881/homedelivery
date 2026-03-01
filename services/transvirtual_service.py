@@ -72,39 +72,79 @@ class TransvirtualService:
                     receiver_address_line1 = f"{receiver_address_line1} {receiver_address_line2}"
                     receiver_address_line2 = ""
             
-            # Clean suburb name
+            # -------------------------------------------------------
+            # FIX: Extract state/postcode if they are mixed into suburb
+            # e.g. "Ripponlea VIC 3185" → suburb="Ripponlea", state="VIC", postcode="3185"
+            # -------------------------------------------------------
             if receiver_suburb:
+                # Case 1: suburb contains state AND postcode  e.g. "Ripponlea VIC 3185"
+                mixed_full = re.match(r'^(.+?)\s+([A-Z]{2,3})\s+(\d{4})$', receiver_suburb.strip())
+                if mixed_full:
+                    receiver_suburb = mixed_full.group(1).strip()
+                    if not receiver_state:
+                        receiver_state = mixed_full.group(2)
+                    if not receiver_postcode:
+                        receiver_postcode = mixed_full.group(3)
+                else:
+                    # Case 2: suburb contains only state  e.g. "Ripponlea VIC"
+                    mixed_state_only = re.match(r'^(.+?)\s+([A-Z]{2,3})$', receiver_suburb.strip())
+                    if mixed_state_only:
+                        receiver_suburb = mixed_state_only.group(1).strip()
+                        if not receiver_state:
+                            receiver_state = mixed_state_only.group(2)
+
+                # Clean suburb name (remove market/shopping suffixes)
                 suburb_clean = receiver_suburb.replace('The ', '').replace(' Markets', '')
                 suburb_clean = suburb_clean.replace(' Market', '').replace(' Shopping', '').strip()
-                suburb_parts = suburb_clean.split()
-                if len(suburb_parts) > 2:
-                    suburb_clean = ' '.join(suburb_parts[:2])
+                # NOTE: Removed aggressive 2-word limit — was incorrectly cutting suburb names
                 receiver_suburb = suburb_clean
-            
-            # Default state
+
+            # Default state only if still empty after all parsing
             if not receiver_state:
                 receiver_state = 'WA'
             
-            # Extract postcode
+            # Extract postcode (clean any non-digit chars)
             if receiver_postcode:
                 postcode_match = re.search(r'\d{4}', receiver_postcode)
                 if postcode_match:
                     receiver_postcode = postcode_match.group(0)
             
-            # Fallback to full address if components missing
+            # -------------------------------------------------------
+            # Fallback: parse from full address string if components missing
+            # -------------------------------------------------------
             if not receiver_address_line1 or not receiver_suburb or not receiver_postcode:
                 full_address = order_data.get('delivery_address', '').strip()
                 if full_address:
                     address_parts = [p.strip() for p in full_address.split(',')]
+                    
                     if not receiver_address_line1 and len(address_parts) >= 1:
                         receiver_address_line1 = address_parts[0]
+                    
                     if not receiver_suburb and len(address_parts) >= 2:
-                        suburb_raw = address_parts[1].strip().replace('The ', '').replace(' Markets', '')
-                        receiver_suburb = suburb_raw
+                        suburb_raw = address_parts[1].strip()
+                        
+                        # Check if suburb part has state/postcode mixed in
+                        mixed_full = re.match(r'^(.+?)\s+([A-Z]{2,3})\s+(\d{4})$', suburb_raw)
+                        if mixed_full:
+                            suburb_raw = mixed_full.group(1).strip()
+                            if not receiver_state or receiver_state == 'WA':
+                                receiver_state = mixed_full.group(2)
+                            if not receiver_postcode:
+                                receiver_postcode = mixed_full.group(3)
+                        else:
+                            mixed_state_only = re.match(r'^(.+?)\s+([A-Z]{2,3})$', suburb_raw)
+                            if mixed_state_only:
+                                suburb_raw = mixed_state_only.group(1).strip()
+                                if not receiver_state or receiver_state == 'WA':
+                                    receiver_state = mixed_state_only.group(2)
+                        
+                        receiver_suburb = suburb_raw.replace('The ', '').replace(' Markets', '').strip()
+                    
                     if not receiver_state and len(address_parts) >= 3:
                         state_part = address_parts[2].strip()
                         if len(state_part) <= 3 and state_part.isalpha():
                             receiver_state = state_part
+                    
                     if not receiver_postcode:
                         for part in reversed(address_parts):
                             postcode_match = re.search(r'\b(\d{4})\b', part)
@@ -121,6 +161,16 @@ class TransvirtualService:
                 receiver_postcode = "0000"
             if not receiver_state:
                 receiver_state = "WA"
+            
+            # Log parsed address for debugging
+            logger.info(
+                f"[TRANSVIRTUAL] 📍 Address parsed → "
+                f"Line1: '{receiver_address_line1}' | "
+                f"Line2: '{receiver_address_line2}' | "
+                f"Suburb: '{receiver_suburb}' | "
+                f"State: '{receiver_state}' | "
+                f"Postcode: '{receiver_postcode}'"
+            )
             
             # Build API payload
             payload = {
