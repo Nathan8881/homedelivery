@@ -343,6 +343,15 @@ async def webhook_handler(request: Request):
         pdf_path  = create_packing_slip_pdf(order_data, config, barcode_path, base_path)
         docx_path = create_packing_slip_docx(order_data, config, barcode_path, base_path)
 
+        # Barcode delete karo — PDF/DOCX me add ho gaya, ab zaroorat nahi
+        if barcode_path and Path(barcode_path).exists():
+            try:
+                os.remove(barcode_path)
+                logger.info(f"[CLEANUP] 🗑️  Barcode deleted: {Path(barcode_path).name}")
+            except Exception as e:
+                logger.warning(f"[CLEANUP] ⚠️  Barcode delete failed: {e}")
+            barcode_path = ""
+
         # Google Drive
         order_date      = datetime.now()
         drive_link_pdf  = google_drive_service.upload_file(pdf_path, order_date, invoice_no, "pdf")
