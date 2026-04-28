@@ -2,14 +2,6 @@
 Home Delivery System - Railway Compatible Version
 With Built-in Tommy Sugo Marketing Calendar + Customer Notifications
 APScheduler based - No Railway Cron needed if container is 24/7 alive
-
-FIXES HISTORY:
-  v14.3 - Double email fix: testing mode loop hataya
-  v14.3 - Date filter: sirf aaj ki Perth date wali TransVirtual requests process hongi
-  v14.4 - email_service: testing mode mein customer_email empty check bypass
-  v14.5 - SMS added to TransVirtual webhook (InTransit + Delivered)
-         - SMS bhi email ki tarah Perth date filter follow karta hai
-         - ReceiverPhone TransVirtual payload se directly use hota hai
 """
 from fastapi import FastAPI, Request, HTTPException
 import os
@@ -32,6 +24,7 @@ from services import (
     MobileMessageService,
     generate_barcode,
     JSONQueueManager,
+    NotificationQueueManager,
     resolve_deals,
 )
 from services.pdf_docx_service import create_packing_slip_pdf, create_packing_slip_docx
@@ -53,7 +46,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ==================== FASTAPI APP ====================
-app = FastAPI(title="Home Delivery - Railway Compatible", version="14.5")
+app = FastAPI(title="Home Delivery - Railway Compatible", version="14.2")
 
 # ==================== GLOBAL INSTANCES ====================
 base_path = Path(__file__).parent
@@ -62,38 +55,9 @@ google_drive_service = GoogleDriveService()
 resend_service = None
 sms_service = None
 queue_manager = JSONQueueManager()
+notification_queue = NotificationQueueManager()
 scheduler = AsyncIOScheduler(timezone="Australia/Perth")
 PERTH_TZ = pytz.timezone("Australia/Perth")
-
-
-# ==================== DATE FILTER HELPER ====================
-
-def is_today_perth(date_time_str: str) -> bool:
-    """
-    TransVirtual ka DateTime Perth time mein aata hai (format: 'YYYY-MM-DD HH:MM').
-    Sirf aaj ki date wali requests allow karo — purani / backdated deliveries skip.
-
-    Returns:
-        True  → request aaj ki hai, process karo
-        False → purani date hai, skip karo
-    """
-    if not date_time_str:
-        logger.warning("[DATE FILTER] DateTime empty — allowing through (safe fallback)")
-        return True
-    try:
-        dt = datetime.strptime(str(date_time_str).strip(), '%Y-%m-%d %H:%M')
-        dt_perth = PERTH_TZ.localize(dt)
-        today_perth = datetime.now(PERTH_TZ).date()
-        is_today = dt_perth.date() == today_perth
-        if not is_today:
-            logger.info(
-                f"[DATE FILTER] ⏭️  Old date detected: {date_time_str} "
-                f"(Perth date: {dt_perth.date()} vs today: {today_perth})"
-            )
-        return is_today
-    except Exception as e:
-        logger.warning(f"[DATE FILTER] DateTime parse failed '{date_time_str}': {e} — allowing through")
-        return True
 
 
 # ==================== SCHEDULE HELPERS ====================
@@ -112,9 +76,9 @@ def setup_scheduler():
     """
     home_delivery.json ke schedule section se APScheduler jobs setup karo.
     Customer notification scheduled job REMOVE kar di gayi hai.
-    Ab customer emails + SMS SIRF TransVirtual webhook se trigger hongi:
-    - InTransit  → Out for Delivery email + SMS
-    - Delivered  → Delivered email + SMS
+    Ab customer emails SIRF TransVirtual webhook se trigger hongi:
+    - InTransit  → Out for Delivery email
+    - Delivered  → Delivered email
     """
     schedule = get_schedule_config()
 
@@ -147,6 +111,16 @@ async def scheduled_send_batch():
     logger.info("[SCHEDULER] ⏰ Factory batch job triggered")
     result = send_batch()
     logger.info(f"[SCHEDULER] Factory batch result: {result}")
+
+
+async def scheduled_send_notifications():
+    """
+    DISABLED — ab use nahi hoti.
+    Customer notifications ab TransVirtual webhook se trigger hoti hain.
+    Ye function sirf manual /trigger-notifications endpoint ke liye rakha hai.
+    """
+    logger.info("[SCHEDULER] ⚠️  scheduled_send_notifications called — ye ab scheduled nahi, sirf manual trigger se")
+    await _process_notifications()
 
 
 # ==================== CORE LOGIC FUNCTIONS ====================
@@ -191,7 +165,59 @@ def send_batch() -> dict:
         return {"status": "failed", "sent": 0, "kept": len(queued_items)}
 
 
+async def _process_notifications() -> dict:
+    """Aaj ki delivery date wale customers ko SMS + Email bhejo (manual trigger ke liye)."""
+    due_items = notification_queue.get_due_today()
 
+    if not due_items:
+        logger.info("[NOTIFICATIONS] No notifications due today")
+        return {"status": "success", "sent": 0, "message": "No notifications due today"}
+
+    results = []
+
+    for item in due_items:
+        invoice_no     = item['invoice_no']
+        customer_name  = item['customer_name']
+        customer_email = item['customer_email']
+        customer_phone = item['customer_phone']
+        consignment_no = item['consignment_number']
+
+        email_sent = False
+        sms_sent   = False
+
+        # Email
+        if item.get('email_sent'):
+            email_sent = True
+        elif resend_service and resend_service.enabled:
+            email_sent = resend_service.send_customer_notification(
+                customer_name=customer_name,
+                customer_email=customer_email,
+                consignment_number=consignment_no,
+                invoice_no=invoice_no,
+            )
+
+        # SMS
+        if item.get('sms_sent'):
+            sms_sent = True
+        elif sms_service and sms_service.enabled:
+            sms_sent = sms_service._send_sms_api(
+                phone=sms_service._format_phone_number(customer_phone),
+                message=sms_service._format_message(customer_name, consignment_no),
+                invoice_no=invoice_no,
+            )
+
+        notification_queue.mark_sent(invoice_no=invoice_no, email_sent=email_sent, sms_sent=sms_sent)
+
+        results.append({"invoice_no": invoice_no, "customer": customer_name, "email_sent": email_sent, "sms_sent": sms_sent})
+        logger.info(f"[NOTIFICATIONS] {invoice_no} → email={'✅' if email_sent else '❌'} | sms={'✅' if sms_sent else '❌'}")
+
+    notification_queue.cleanup_old_sent(days_to_keep=7)
+
+    total_email = sum(1 for r in results if r['email_sent'])
+    total_sms   = sum(1 for r in results if r['sms_sent'])
+    logger.info(f"[NOTIFICATIONS] Done — Processed: {len(results)} | Email: {total_email} | SMS: {total_sms}")
+
+    return {"status": "success", "processed": len(results), "email_sent": total_email, "sms_sent": total_sms, "results": results}
 
 
 # ==================== STARTUP / SHUTDOWN ====================
@@ -215,18 +241,16 @@ async def startup_event():
         perth_now = datetime.now(PERTH_TZ)
         logger.info("=" * 80)
         logger.info("APPLICATION STARTED SUCCESSFULLY")
-        logger.info(f"Version       : 14.5 (SMS added to TransVirtual webhook)")
         logger.info(f"Google Drive  : {'✅ ENABLED' if google_drive_service.enabled else '❌ DISABLED'}")
         logger.info(f"Resend Email  : {'✅ ENABLED' if resend_service.enabled else '❌ DISABLED'}")
         logger.info(f"SMS Service   : {'✅ ENABLED' if sms_service.enabled else '❌ DISABLED'}")
         logger.info(f"Factory Queue : {queue_manager.count()} items pending")
+        logger.info(f"Notif Queue   : {notification_queue.count()} items pending")
         logger.info(f"Perth Time    : {perth_now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
         logger.info(f"Webhook Mode  : {'🧪 TESTING — sirf test emails' if is_testing else '🚀 PRODUCTION — customer emails'}")
         if is_testing and test_emails:
             logger.info(f"Test Emails   : {', '.join(test_emails)}")
         logger.info("Customer Emails: ✅ TransVirtual webhook se trigger hongi (InTransit / Delivered)")
-        logger.info("Customer SMS  : ✅ TransVirtual webhook se trigger hongi (InTransit / Delivered)")
-        logger.info("Date Filter   : ✅ ENABLED — sirf aaj ki Perth date wali requests process hongi")
         logger.info("SCHEDULED JOBS:")
         for job in scheduler.get_jobs():
             logger.info(f"  {job.name} → Next: {job.next_run_time}")
@@ -308,7 +332,16 @@ async def webhook_handler(request: Request):
         else:
             logger.warning("[WARNING] No Transvirtual barcode")
 
-
+        # Customer Notification Queue — sirf backup ke liye rakha hai
+        notification_queued = notification_queue.add_notification(
+            invoice_no=invoice_no,
+            customer_name=order_data.get('customer_name', ''),
+            customer_email=order_data.get('customer_email', ''),
+            customer_phone=order_data.get('customer_phone', ''),
+            consignment_number=consignment_number,
+            delivery_date=order_data.get('delivery_date_obj'),
+        )
+        logger.info(f"[NOTIFICATION QUEUE] {'✅ Queued' if notification_queued else '⚠️ Failed'} for {invoice_no}")
 
         # PDF & DOCX
         pdf_path  = create_packing_slip_pdf(order_data, config, barcode_path, base_path)
@@ -355,7 +388,12 @@ async def webhook_handler(request: Request):
             "drive_link_docx"    : drive_link_docx or "Upload failed",
             "products_count"     : len(order_data['items']),
             "consignment_number" : consignment_number or "N/A",
-
+            "customer_notifications": {
+                "queued"         : notification_queued,
+                "delivery_date"  : str(order_data.get('delivery_date_obj', 'N/A')),
+                "tracking_link"  : f"https://mydel.info/Track/48497/{consignment_number}" if consignment_number else "N/A",
+                "trigger"        : "TransVirtual webhook (InTransit / Delivered)",
+            },
             "factory_email": {
                 "mode"            : "testing" if resend_service and resend_service.testing_mode else "production",
                 "sent_immediately": factory_email_sent,
@@ -386,26 +424,34 @@ async def trigger_batch_now():
     return result
 
 
+@app.post("/trigger-notifications")
+async def trigger_notifications_now():
+    """
+    Customer SMS + Email ABHI manually trigger karo — sirf testing/emergency ke liye.
+    Normal flow: TransVirtual webhook se automatically trigger hota hai.
+    """
+    logger.info("[MANUAL TRIGGER] /trigger-notifications")
+    result = await _process_notifications()
+    result['triggered_by'] = 'manual'
+    return result
+
+
 # ==================== TRANSVIRTUAL WEBHOOK ====================
 
 @app.api_route("/webhook/transvirtual", methods=["POST", "PUT"])
 async def transvirtual_status_webhook(request: Request):
     """
     TransVirtual se automatic status updates receive karo.
-    InTransit  = courier ne factory se order utha liya → Out for Delivery email + SMS
-    Delivered  = order customer tak pahunch gaya → Delivered email + SMS
-
-    DATE FILTER (v14.3):
-        Sirf aaj ki Perth date wali requests process hongi.
-        Purani / backdated deliveries automatically skip ho jaayengi.
+    InTransit  = courier ne factory se order utha liya → Out for Delivery email
+    Delivered  = order customer tak pahunch gaya → Delivered email
 
     TESTING MODE  (testing_mode: true  in home_delivery.json):
-        Email → sirf testing_emails list wali emails ko jaayegi
-        SMS   → enabled hone par real SMS jaayegi (testing number set karo config mein)
+        → Sirf testing_emails list wali emails ko jaayegi
+        → Customer ko koi email nahi
 
     PRODUCTION MODE (testing_mode: false in home_delivery.json):
-        Email → customer ko + BCC admin
-        SMS   → customer ke ReceiverPhone par
+        → Customer ko email jaayegi (TransVirtual se mila ReceiverEmail)
+        → BCC automatically admin emails ko
     """
     try:
         data = await request.json()
@@ -414,7 +460,6 @@ async def transvirtual_status_webhook(request: Request):
         status             = data.get('Status', '')
         receiver_name      = data.get('ReceiverName', '')
         receiver_email     = data.get('ReceiverEmail', '')
-        receiver_phone     = data.get('ReceiverPhone', '')   # ✅ v14.5: SMS ke liye
         date_time          = data.get('DateTime', '')
         comment            = data.get('Comment', '')
 
@@ -425,7 +470,6 @@ async def transvirtual_status_webhook(request: Request):
         logger.info(f"  Status            : {status}")
         logger.info(f"  ReceiverName      : {receiver_name}")
         logger.info(f"  ReceiverEmail     : {receiver_email}")
-        logger.info(f"  ReceiverPhone     : {receiver_phone}")
         logger.info(f"  DateTime          : {date_time}")
         logger.info(f"  Comment           : {comment}")
         logger.info(f"  Raw payload       : {data}")
@@ -434,27 +478,6 @@ async def transvirtual_status_webhook(request: Request):
         if not consignment_number or not status:
             logger.error("[TRANSVIRTUAL WEBHOOK] ❌ Missing ConsignmentNumber or Status")
             raise HTTPException(status_code=400, detail="ConsignmentNumber aur Status required hain")
-
-        # ── DATE FILTER — sirf aaj ki Perth date wali requests process karo ──
-        if not is_today_perth(date_time):
-            perth_today = datetime.now(PERTH_TZ).strftime('%Y-%m-%d')
-            logger.info(
-                f"[TRANSVIRTUAL WEBHOOK] ⏭️  SKIPPED — Old/backdated delivery\n"
-                f"  Consignment : {consignment_number}\n"
-                f"  DateTime    : {date_time}\n"
-                f"  Perth Today : {perth_today}\n"
-                f"  Reason      : Delivery date aaj ki nahi — email/SMS send nahi hogi"
-            )
-            logger.info("=" * 80)
-            return {
-                "received"    : True,
-                "consignment" : consignment_number,
-                "status"      : status,
-                "skipped"     : True,
-                "reason"      : f"Old delivery date: {date_time} — not today ({perth_today} Perth)",
-                "email_sent"  : False,
-                "sms_sent"    : False,
-            }
 
         # ── Testing / Production mode decide karo ───────────────────
         is_testing = resend_service and resend_service.testing_mode
@@ -466,97 +489,57 @@ async def transvirtual_status_webhook(request: Request):
             logger.info(f"[TRANSVIRTUAL WEBHOOK] 🧪 TESTING MODE → emails jaayengi: {test_emails}")
         else:
             target_name = receiver_name
-            logger.info(f"[TRANSVIRTUAL WEBHOOK] 🚀 PRODUCTION MODE → customer email: {receiver_email} | phone: {receiver_phone}")
+            logger.info(f"[TRANSVIRTUAL WEBHOOK] 🚀 PRODUCTION MODE → customer email: {receiver_email}")
 
         email_sent = False
-        sms_sent   = False
 
-        # ── InTransit → Out for Delivery email + SMS ─────────────────
+        # ── InTransit → Out for Delivery email ──────────────────────
         if status.lower() == 'intransit':
-            logger.info("[TRANSVIRTUAL WEBHOOK] 🚚 Status: InTransit → Out for Delivery email + SMS bhej raha hoon")
-
-            # Email
+            logger.info("[TRANSVIRTUAL WEBHOOK] 🚚 Status: InTransit → Out for Delivery email bhej raha hoon")
             if resend_service and resend_service.enabled:
                 if is_testing:
-                    email_sent = resend_service.send_intransit_notification(
-                        customer_name=target_name,
-                        customer_email="",          # testing mode mein ignore — service test_emails use karti hai
-                        consignment_number=consignment_number,
-                    )
-                    logger.info(f"[TRANSVIRTUAL WEBHOOK] 🧪 InTransit email sent | sent: {email_sent}")
+                    for test_email in test_emails:
+                        email_sent = resend_service.send_intransit_notification(
+                            customer_name=target_name,
+                            customer_email=test_email,
+                            consignment_number=consignment_number,
+                        )
+                        logger.info(f"[TRANSVIRTUAL WEBHOOK] 🧪 Bheja: {test_email} | sent: {email_sent}")
                 else:
                     email_sent = resend_service.send_intransit_notification(
                         customer_name=target_name,
                         customer_email=receiver_email,
                         consignment_number=consignment_number,
                     )
-                    logger.info(f"[TRANSVIRTUAL WEBHOOK] 🚀 InTransit email sent | sent: {email_sent}")
             else:
-                logger.warning("[TRANSVIRTUAL WEBHOOK] ⚠️  Email service disabled - InTransit email skip")
+                logger.warning("[TRANSVIRTUAL WEBHOOK] ⚠️  Email service disabled - InTransit skip")
 
-            # SMS — v14.5 NEW
-            if sms_service and sms_service.enabled:
-                if receiver_phone:
-                    sms_sent = sms_service.send_delivery_notification(
-                        customer_name=target_name,
-                        customer_phone=receiver_phone,
-                        consignment_number=consignment_number,
-                        invoice_no=consignment_number,
-                        delivery_date=date_time,    # Perth date filter already passed above
-                    )
-                    logger.info(f"[TRANSVIRTUAL WEBHOOK] 📱 InTransit SMS | sent: {sms_sent}")
-                else:
-                    logger.warning("[TRANSVIRTUAL WEBHOOK] ⚠️  No ReceiverPhone — InTransit SMS skip")
-            else:
-                logger.info("[TRANSVIRTUAL WEBHOOK] ℹ️  SMS service disabled — InTransit SMS skip")
-
-        # ── Delivered → Delivered email + SMS ────────────────────────
+        # ── Delivered → Delivered email ──────────────────────────────
         elif status.lower() == 'delivered':
-            logger.info("[TRANSVIRTUAL WEBHOOK] ✅ Status: Delivered → Delivered email + SMS bhej raha hoon")
-
-            # Email
+            logger.info("[TRANSVIRTUAL WEBHOOK] ✅ Status: Delivered → Delivered email bhej raha hoon")
             if resend_service and resend_service.enabled:
                 if is_testing:
-                    email_sent = resend_service.send_delivered_notification(
-                        customer_name=target_name,
-                        customer_email="",          # testing mode mein ignore — service test_emails use karti hai
-                        consignment_number=consignment_number,
-                    )
-                    logger.info(f"[TRANSVIRTUAL WEBHOOK] 🧪 Delivered email sent | sent: {email_sent}")
+                    for test_email in test_emails:
+                        email_sent = resend_service.send_delivered_notification(
+                            customer_name=target_name,
+                            customer_email=test_email,
+                            consignment_number=consignment_number,
+                        )
+                        logger.info(f"[TRANSVIRTUAL WEBHOOK] 🧪 Bheja: {test_email} | sent: {email_sent}")
                 else:
                     email_sent = resend_service.send_delivered_notification(
                         customer_name=target_name,
                         customer_email=receiver_email,
                         consignment_number=consignment_number,
                     )
-                    logger.info(f"[TRANSVIRTUAL WEBHOOK] 🚀 Delivered email sent | sent: {email_sent}")
             else:
-                logger.warning("[TRANSVIRTUAL WEBHOOK] ⚠️  Email service disabled - Delivered email skip")
-
-            # SMS — v14.5 NEW
-            if sms_service and sms_service.enabled:
-                if receiver_phone:
-                    sms_sent = sms_service.send_delivery_notification(
-                        customer_name=target_name,
-                        customer_phone=receiver_phone,
-                        consignment_number=consignment_number,
-                        invoice_no=consignment_number,
-                        delivery_date=date_time,    # Perth date filter already passed above
-                    )
-                    logger.info(f"[TRANSVIRTUAL WEBHOOK] 📱 Delivered SMS | sent: {sms_sent}")
-                else:
-                    logger.warning("[TRANSVIRTUAL WEBHOOK] ⚠️  No ReceiverPhone — Delivered SMS skip")
-            else:
-                logger.info("[TRANSVIRTUAL WEBHOOK] ℹ️  SMS service disabled — Delivered SMS skip")
+                logger.warning("[TRANSVIRTUAL WEBHOOK] ⚠️  Email service disabled - Delivered skip")
 
         # ── Other status — koi action nahi ──────────────────────────
         else:
-            logger.info(f"[TRANSVIRTUAL WEBHOOK] ℹ️  Status '{status}' — koi email/SMS action nahi")
+            logger.info(f"[TRANSVIRTUAL WEBHOOK] ℹ️  Status '{status}' — koi email action nahi")
 
-        logger.info(
-            f"[TRANSVIRTUAL WEBHOOK] Done | mode: {'TESTING' if is_testing else 'PRODUCTION'} "
-            f"| email_sent: {email_sent} | sms_sent: {sms_sent}"
-        )
+        logger.info(f"[TRANSVIRTUAL WEBHOOK] Done | mode: {'TESTING' if is_testing else 'PRODUCTION'} | email_sent: {email_sent}")
         logger.info("=" * 80)
 
         return {
@@ -564,8 +547,7 @@ async def transvirtual_status_webhook(request: Request):
             "consignment" : consignment_number,
             "status"      : status,
             "mode"        : "testing" if is_testing else "production",
-            "email_sent"  : email_sent,
-            "sms_sent"    : sms_sent,
+            "email_sent"  : email_sent
         }
 
     except HTTPException:
@@ -587,8 +569,7 @@ async def scheduler_status():
         "scheduler_running" : scheduler.running,
         "perth_time_now"    : perth_now.strftime('%Y-%m-%d %H:%M:%S %Z'),
         "jobs"              : [{"name": j.name, "next_run": str(j.next_run_time)} for j in scheduler.get_jobs()],
-        "customer_notifications": "TransVirtual webhook se trigger hoti hain (email + SMS)",
-        "date_filter"       : f"Sirf aaj ki Perth date ({perth_now.strftime('%Y-%m-%d')}) wali requests process hongi",
+        "customer_notifications": "TransVirtual webhook se trigger hoti hain",
         "config_times"      : {
             "factory_batch": schedule.get('factory_batch', {}).get('times_perth', []),
         },
@@ -609,27 +590,21 @@ async def root():
     current_event = TommySugoCalendar.get_current_event()
     event_info    = f"{current_event['name']} (in {current_event['days_until']} days)" if current_event else "No active events"
 
-    perth_now = datetime.now(PERTH_TZ)
-
     return {
         "status"      : "online",
-        "version"     : "14.5 - Email + SMS via TransVirtual webhook",
-        "perth_time"  : perth_now.strftime('%Y-%m-%d %H:%M:%S %Z'),
+        "version"     : "14.2 - Customer emails via TransVirtual webhook only",
+        "perth_time"  : datetime.now(PERTH_TZ).strftime('%Y-%m-%d %H:%M:%S %Z'),
         "google_drive": "enabled" if google_drive_service.enabled else "disabled",
         "email"       : {
             "service"       : "enabled" if resend_service and resend_service.enabled else "disabled",
             "mode"          : email_mode,
             "factory_queue" : queue_manager.count()
         },
-        "sms"         : {
-            "service" : "enabled" if sms_service and sms_service.enabled else "disabled",
-            "mode"    : sms_mode
-        },
+        "sms"         : {"service": "enabled" if sms_service and sms_service.enabled else "disabled", "mode": sms_mode},
         "notifications": {
-            "trigger"     : "TransVirtual webhook (InTransit / Delivered) → email + SMS",
-            "date_filter" : f"✅ ACTIVE — sirf aaj ({perth_now.strftime('%Y-%m-%d')}) ki Perth date wali requests",
-            "email_mode"  : "testing — sirf test emails" if (resend_service and resend_service.testing_mode) else "production — customer emails",
-            "sms_mode"    : sms_mode
+            "trigger"  : "TransVirtual webhook (InTransit / Delivered)",
+            "mode"     : "testing — sirf test emails" if (resend_service and resend_service.testing_mode) else "production — customer emails",
+            "stats"    : notification_queue.get_stats()
         },
         "scheduler"   : {"running": scheduler.running, "jobs": [{"name": j.name, "next": str(j.next_run_time)} for j in scheduler.get_jobs()]},
         "marketing"   : {"active_event": event_info},
@@ -646,7 +621,8 @@ async def list_forms():
 @app.get("/queue")
 async def view_queue():
     return {
-        "factory_email_queue": {"mode": "testing" if (resend_service and resend_service.testing_mode) else "production", "total": queue_manager.count(), "items": queue_manager.get_all()},
+        "factory_email_queue"        : {"mode": "testing" if (resend_service and resend_service.testing_mode) else "production", "total": queue_manager.count(), "items": queue_manager.get_all()},
+        "customer_notification_queue": {"stats": notification_queue.get_stats(), "items": notification_queue.get_all()},
     }
 
 

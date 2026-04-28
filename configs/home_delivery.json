@@ -7,6 +7,10 @@
   "email": {
     "enabled": true,
     "testing_mode": false,
+    "testing_emails": [
+      "arrehman445511@gmail.com",
+      "marketing.tommysugo@gmail.com"
+    ],
     "sender_name": "Tommy Sugo",
     "sender_email": "orders@tommysugo.online",
     "recipient_emails": [
@@ -36,12 +40,6 @@
         {"hour": 20, "minute": 0, "label": "8 PM Batch"}
       ],
       "note": "Factory ko packing slips bhejne ka waqt — Perth time. Change karo aur app restart karo."
-    },
-    "customer_notifications": {
-      "times_perth": [
-        {"hour": 6, "minute": 0, "label": "6 AM Daily"}
-      ],
-      "note": "Customers ko SMS + Email bhejne ka waqt (delivery date pe) — Perth time."
     }
   },
   "pdf": {
@@ -130,7 +128,7 @@
         "enabled": true,
         "table": {
           "x": 30,
-          "width": 270,
+          "width": 476,
           "row_height": 20,
           "spacing_below": 10,
           "header": {
@@ -148,9 +146,9 @@
             "line_spacing": 14
           },
           "columns": [
-            {"key": "qty",          "label": "QTY",          "width": 35,  "max_chars": 5},
-            {"key": "product_name", "label": "PRODUCT NAME", "width": 175, "max_chars": 28},
-            {"key": "product_code", "label": "CODE",         "width": 60,  "max_chars": 12}
+            {"key": "qty",          "label": "QTY",          "width": 40,  "max_chars": 5},
+            {"key": "product_name", "label": "PRODUCT NAME", "width": 310, "max_chars": 50},
+            {"key": "product_code", "label": "CODE",         "width": 90,  "max_chars": 15}
           ]
         },
         "recycle_logo": {
@@ -179,9 +177,9 @@
       },
       "contact_line": {
         "enabled": true,
-        "text": "Call: 9am-6pm (08) 6186 0077 | Email: Info@tommysugo.com.au | www.tommysugo.com.au",
+        "text": "TommySugo: 9am-6pm (08) 6186 0077 | Email: Info@tommysugo.com.au | www.tommysugo.com.au",
         "font_family": "Helvetica",
-        "font_size": 14,
+        "font_size": 10,
         "text_color": [0, 0, 0],
         "alignment": "center",
         "y_position": "bottom",

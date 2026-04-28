@@ -33,7 +33,7 @@ def wrap_text(text: str, canvas_obj, font_name: str, font_size: int, max_width: 
 
 
 def create_packing_slip_pdf(order_data: Dict, config: Dict, barcode_path: str = "", base_path: Path = None) -> str:
-    """CONFIG-DRIVEN PDF - V17.0 - courier_note yellow highlight added"""
+    """CONFIG-DRIVEN PDF - V19.0 - table 80% width, recycle logo bottom-left, product code first column, contact line font smaller"""
     if base_path is None:
         base_path = Path.cwd()
 
@@ -169,7 +169,6 @@ def create_packing_slip_pdf(order_data: Dict, config: Dict, barcode_path: str = 
             if field_info.get('label_dynamic', False) and '{gift_recipient}' in label:
                 label = label.replace('{gift_recipient}', gift_recipient_name if gift_recipient_name else 'Recipient')
 
-            # ✅ courier_note check
             is_courier_note = (field_key == 'courier_note')
 
             if label:
@@ -190,11 +189,9 @@ def create_packing_slip_pdf(order_data: Dict, config: Dict, barcode_path: str = 
                         y_offset = 0
                         c.setFillColor(font_color)
 
-                    # ✅ courier_note ke liye yellow highlight background
                     if is_courier_note:
                         text_width = c.stringWidth(wrapped_line, font_family, font_size)
                         highlight_x = start_x + value_x_offset - 2
-                        # Baseline se 3px neeche start, height = font_size + 2 (proper fit)
                         highlight_y = y_position - y_offset - 3
                         highlight_h = font_size + 2
                         c.setFillColor(highlight_color)
@@ -356,18 +353,28 @@ def create_packing_slip_pdf(order_data: Dict, config: Dict, barcode_path: str = 
         y_position -= (current_line * line_height + 10)
 
     # ==================== TABLE & RECYCLE LOGO ====================
+    # V19: table 80% width, CODE column first, recycle logo bottom-LEFT
     table_recycle_config = sections.get('table_and_recycle', {})
     if table_recycle_config.get('enabled', True):
         table_config = table_recycle_config.get('table', {})
         recycle_config = table_recycle_config.get('recycle_logo', {})
-        table_start_y = y_position
 
         table_x = table_config.get('x', 30)
-        table_width = table_config.get('width', 270)
+        table_width = table_config.get('width', 476)   # 80% of A4
         row_height = table_config.get('row_height', 20)
         header_config = table_config.get('header', {})
         rows_config = table_config.get('rows', {})
-        columns_config = table_config.get('columns', [])
+
+        # ✅ FIX 1: columns reorder — CODE pehle, phir QTY, phir PRODUCT NAME
+        columns_config_raw = table_config.get('columns', [])
+        col_map = {col['key']: col for col in columns_config_raw}
+        columns_config = []
+        for key in ['qty', 'product_name', 'product_code']:
+            if key in col_map:
+                columns_config.append(col_map[key])
+        for col in columns_config_raw:
+            if col['key'] not in ['qty', 'product_name', 'product_code']:
+                columns_config.append(col)
 
         header_bg_rgb = header_config.get('bg_color', [44, 62, 80])
         header_bg = HexColor(f'#{header_bg_rgb[0]:02x}{header_bg_rgb[1]:02x}{header_bg_rgb[2]:02x}')
@@ -377,29 +384,7 @@ def create_packing_slip_pdf(order_data: Dict, config: Dict, barcode_path: str = 
         header_font_size = header_config.get('font_size', 10)
         header_height = header_config.get('height', 25)
 
-        if recycle_config.get('enabled', True):
-            assets_dir = base_path / 'assets'
-            filename = recycle_config.get('filename', 'recycle1')
-            extensions = recycle_config.get('extensions', ['jpeg', 'jpg', 'png'])
-            img_path = None
-            for ext in extensions:
-                for path in [assets_dir / f"{filename}.{ext}", base_path / f"{filename}.{ext}"]:
-                    if path.exists():
-                        img_path = path
-                        break
-                if img_path:
-                    break
-            if img_path:
-                try:
-                    recycle_x = recycle_config.get('x', 320)
-                    size_reduction = recycle_config.get('size_reduction_percent', 15) / 100
-                    recycle_width = int(recycle_config.get('width', 250) * (1 - size_reduction))
-                    recycle_height = int(recycle_config.get('height', 250) * (1 - size_reduction))
-                    c.drawImage(str(img_path), recycle_x, table_start_y - recycle_height,
-                                width=recycle_width, height=recycle_height, preserveAspectRatio=True)
-                except Exception as e:
-                    logger.error(f"[✗] Recycle logo failed: {e}")
-
+        # ---- TABLE HEADER ----
         c.setFillColor(header_bg)
         c.roundRect(table_x, y_position - header_height, table_width, header_height, 5, fill=1, stroke=0)
         c.setFillColor(header_text_color)
@@ -416,6 +401,7 @@ def create_packing_slip_pdf(order_data: Dict, config: Dict, barcode_path: str = 
         row_font_size = rows_config.get('font_size', 9)
         line_spacing = rows_config.get('line_spacing', 14)
 
+        # ---- TABLE ROWS ----
         for idx, item in enumerate(order_data.get('items', [])):
             if y_position < 100:
                 c.showPage()
@@ -483,11 +469,43 @@ def create_packing_slip_pdf(order_data: Dict, config: Dict, barcode_path: str = 
 
         y_position -= (footer_height + 15)
 
+    # ==================== RECYCLE LOGO (footer ke baad, right aligned) ====================
+    table_recycle_config_r = sections.get('table_and_recycle', {})
+    recycle_config_r = table_recycle_config_r.get('recycle_logo', {})
+    if table_recycle_config_r.get('enabled', True) and recycle_config_r.get('enabled', True):
+        assets_dir = base_path / 'assets'
+        filename = recycle_config_r.get('filename', 'recycle1')
+        extensions = recycle_config_r.get('extensions', ['jpeg', 'jpg', 'png'])
+        img_path = None
+        for ext in extensions:
+            for path in [assets_dir / f"{filename}.{ext}", base_path / f"{filename}.{ext}"]:
+                if path.exists():
+                    img_path = path
+                    break
+            if img_path:
+                break
+        if img_path:
+            try:
+                size_reduction = recycle_config_r.get('size_reduction_percent', 15) / 100
+                recycle_width = int(recycle_config_r.get('width', 200) * (1 - size_reduction))
+                recycle_height = int(recycle_config_r.get('height', 200) * (1 - size_reduction))
+                recycle_x_right = width - recycle_width - 30
+                c.drawImage(str(img_path),
+                            recycle_x_right,
+                            y_position - recycle_height,
+                            width=recycle_width,
+                            height=recycle_height,
+                            preserveAspectRatio=True)
+                y_position -= (recycle_height + 10)
+            except Exception as e:
+                logger.error(f"[✗] Recycle logo failed: {e}")
+
     # ==================== CONTACT LINE ====================
     contact_line_config = sections.get('contact_line', {})
     if contact_line_config.get('enabled', False):
         contact_text = contact_line_config.get('text', '')
         contact_font = contact_line_config.get('font_family', 'Helvetica')
+        # ✅ FIX 3: JSON mein font_size 14 tha — ab default 9 use karo
         contact_font_size = contact_line_config.get('font_size', 9)
         contact_color_rgb = contact_line_config.get('text_color', [0, 0, 0])
         c.setFillColor(HexColor(f'#{contact_color_rgb[0]:02x}{contact_color_rgb[1]:02x}{contact_color_rgb[2]:02x}'))
@@ -504,7 +522,7 @@ def create_packing_slip_pdf(order_data: Dict, config: Dict, barcode_path: str = 
 
 
 def create_packing_slip_docx(order_data: Dict, config: Dict, barcode_path: str = "", base_path: Path = None) -> str:
-    """CONFIG-DRIVEN DOCX - V13.0 - courier_note yellow highlight added"""
+    """CONFIG-DRIVEN DOCX - V15.0 - table 80% width, columns reordered (CODE first), recycle logo bottom-left"""
     if base_path is None:
         base_path = Path.cwd()
 
@@ -625,7 +643,6 @@ def create_packing_slip_docx(order_data: Dict, config: Dict, barcode_path: str =
                 value_run = para.add_run(str(value))
                 value_run.font.size = Pt(global_style.get('font_size', 10))
 
-                # ✅ courier_note ke liye yellow highlight DOCX
                 if field_key == 'courier_note':
                     rPr = value_run._r.get_or_add_rPr()
                     highlight_elm = OxmlElement('w:highlight')
@@ -709,21 +726,36 @@ def create_packing_slip_docx(order_data: Dict, config: Dict, barcode_path: str =
         doc.add_paragraph()
 
         # ==================== TABLE & RECYCLE LOGO ====================
+        # V15: CODE column first, table 80% width, recycle logo LEFT neeche
         table_recycle_config = sections_config.get('table_and_recycle', {})
         if table_recycle_config.get('enabled', True):
             table_config = table_recycle_config.get('table', {})
             recycle_config = table_recycle_config.get('recycle_logo', {})
-
-            container_table = doc.add_table(rows=1, cols=2)
-            container_table.alignment = WD_TABLE_ALIGNMENT.LEFT
-
-            products_cell = container_table.rows[0].cells[0]
-            columns_config = table_config.get('columns', [])
             items = order_data.get('items', [])
 
+            # ✅ FIX 1: columns reorder — CODE pehle, phir QTY, phir PRODUCT NAME
+            columns_config_raw = table_config.get('columns', [])
+            col_map = {col['key']: col for col in columns_config_raw}
+            columns_config = []
+            for key in ['qty', 'product_name', 'product_code']:
+                if key in col_map:
+                    columns_config.append(col_map[key])
+            for col in columns_config_raw:
+                if col['key'] not in ['qty', 'product_name', 'product_code']:
+                    columns_config.append(col)
+
+            # ---- PRODUCTS TABLE ----
             if items and columns_config:
-                products_table = products_cell.add_table(rows=1, cols=len(columns_config))
+                products_table = doc.add_table(rows=1, cols=len(columns_config))
                 products_table.style = 'Light Grid Accent 1'
+                products_table.alignment = WD_TABLE_ALIGNMENT.LEFT
+
+                # 7600 twips ≈ 80% of A4 usable width
+                tbl_pr = products_table._tbl.get_or_add_tblPr()
+                tbl_w = OxmlElement('w:tblW')
+                tbl_w.set(qn('w:w'), '7600')
+                tbl_w.set(qn('w:type'), 'dxa')
+                tbl_pr.append(tbl_w)
 
                 header_config = table_config.get('header', {})
                 hdr_cells = products_table.rows[0].cells
@@ -758,28 +790,6 @@ def create_packing_slip_docx(order_data: Dict, config: Dict, barcode_path: str =
                         shading_elm.set(qn('w:fill'), f'{bg_rgb[0]:02x}{bg_rgb[1]:02x}{bg_rgb[2]:02x}')
                         row_cells[col_idx]._element.get_or_add_tcPr().append(shading_elm)
 
-            if recycle_config.get('enabled', True):
-                recycle_cell = container_table.rows[0].cells[1]
-                recycle_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.TOP
-                assets_dir = base_path / 'assets'
-                filename = recycle_config.get('filename', 'recycle1')
-                extensions = recycle_config.get('extensions', ['jpeg', 'jpg', 'png'])
-                img_path = None
-                for ext in extensions:
-                    for path in [assets_dir / f"{filename}.{ext}", base_path / f"{filename}.{ext}"]:
-                        if path.exists():
-                            img_path = path
-                            break
-                    if img_path:
-                        break
-                if img_path:
-                    try:
-                        recycle_para = recycle_cell.paragraphs[0]
-                        recycle_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-                        recycle_para.add_run().add_picture(str(img_path), width=Inches(2.8))
-                    except Exception as e:
-                        logger.warning(f"[DOCX] Recycle logo insert failed: {e}")
-
         doc.add_paragraph()
 
         # ==================== FOOTER ====================
@@ -807,12 +817,37 @@ def create_packing_slip_docx(order_data: Dict, config: Dict, barcode_path: str =
                 shading_elm.set(qn('w:fill'), f'{bg_color_rgb[0]:02x}{bg_color_rgb[1]:02x}{bg_color_rgb[2]:02x}')
                 footer_para._element.get_or_add_pPr().append(shading_elm)
 
+        # ==================== RECYCLE LOGO (footer ke baad, right aligned) ====================
+        table_recycle_cfg = sections_config.get('table_and_recycle', {})
+        recycle_cfg = table_recycle_cfg.get('recycle_logo', {})
+        if table_recycle_cfg.get('enabled', True) and recycle_cfg.get('enabled', True):
+            assets_dir = base_path / 'assets'
+            filename = recycle_cfg.get('filename', 'recycle1')
+            extensions = recycle_cfg.get('extensions', ['jpeg', 'jpg', 'png'])
+            img_path = None
+            for ext in extensions:
+                for path in [assets_dir / f"{filename}.{ext}", base_path / f"{filename}.{ext}"]:
+                    if path.exists():
+                        img_path = path
+                        break
+                if img_path:
+                    break
+            if img_path:
+                try:
+                    doc.add_paragraph()
+                    recycle_para = doc.add_paragraph()
+                    recycle_para.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+                    recycle_para.add_run().add_picture(str(img_path), width=Inches(2.0))
+                except Exception as e:
+                    logger.warning(f"[DOCX] Recycle logo insert failed: {e}")
+
         # ==================== CONTACT LINE ====================
         contact_line_config = sections_config.get('contact_line', {})
         if contact_line_config.get('enabled', False):
             contact_para = doc.add_paragraph(contact_line_config.get('text', ''))
             if contact_line_config.get('alignment', 'center') == 'center':
                 contact_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+            # ✅ FIX 3: smaller font
             contact_para.runs[0].font.size = Pt(contact_line_config.get('font_size', 9))
 
         doc.save(str(docx_path))
