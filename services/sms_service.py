@@ -9,6 +9,9 @@ SMS Behavior:
 FIXES:
   v14.5 - _should_send_now() mein Perth timezone use karo (pehle server local time tha)
          - TransVirtual webhook se directly call hota hai (InTransit / Delivered)
+  v14.6 - DO alag functions: send_intransit_notification() + send_delivered_notification()
+         - DO alag templates config mein: intransit_template + delivered_template
+         - send_delivery_notification() deprecated — backward compat ke liye rakha hai
 """
 import os
 import logging
@@ -39,12 +42,18 @@ class MobileMessageService:
         self.testing_mode = self.config.get('testing_mode', False)
         self.api_url      = "https://api.mobilemessage.com.au/v1/messages"
 
-        self.message_template = self.config.get(
-            'message_template',
-            'Hi {customer_name},\nYour Tommy Sugo order is now out for delivery and will be arriving at your location shortly.\n\n'
-            'To maintain the best quality, we kindly recommend bringing the products inside as soon as they arrive and placing them straight into the freezer.\n\n'
-            'You can track your delivery here:\n{tracking_link}\n\n'
-            'Thank you for choosing Tommy Sugo.\n\nWarm regards,\nNathan and the Tommy Sugo Team'
+        # Default templates — config se override honge
+        self.intransit_template = self.config.get(
+            'intransit_template',
+            'Hi {customer_name}, great news! Your Tommy Sugo order is on its way. '
+            'Please pop it in the freezer on arrival.\n\nTrack: {tracking_link}'
+        )
+
+        self.delivered_template = self.config.get(
+            'delivered_template',
+            'Hi {customer_name}, your Tommy Sugo order has been delivered. '
+            'Please check your SMS link for arrival confirmation. '
+            'Thank you & enjoy! Nathan & Team :-)\n\nTrack: {tracking_link}'
         )
 
         if self.enabled:
@@ -88,11 +97,11 @@ class MobileMessageService:
             return "Tracking link not available"
         return f"https://mydel.info/Track/48497/{consignment_number}"
 
-    def _format_message(self, customer_name: str, consignment_number: str = "") -> str:
+    def _format_message(self, template: str, customer_name: str, consignment_number: str = "") -> str:
         """Format SMS message with customer name and tracking link"""
         first_name    = self._get_first_name(customer_name)
         tracking_link = self._generate_tracking_link(consignment_number)
-        message = self.message_template.replace('{customer_name}', first_name)
+        message = template.replace('{customer_name}', first_name)
         message = message.replace('{tracking_link}', tracking_link)
         return message
 
@@ -148,8 +157,6 @@ class MobileMessageService:
         """
         Decide whether to send SMS right now based on mode + Perth date.
 
-        FIX v14.5: Perth timezone use karo — pehle server local time tha jo wrong tha.
-
         TESTING MODE  → Always send immediately (date check nahi)
         PRODUCTION MODE → Send only if today (Perth) == delivery date
 
@@ -163,7 +170,7 @@ class MobileMessageService:
 
         # Production: Perth date check
         parsed_date  = self._parse_delivery_date(delivery_date)
-        today_perth  = datetime.now(PERTH_TZ).date()   # FIX v14.5: Perth TZ
+        today_perth  = datetime.now(PERTH_TZ).date()
 
         if parsed_date is None:
             logger.error(
@@ -191,7 +198,139 @@ class MobileMessageService:
             )
             return False
 
-    # ==================== MAIN SEND FUNCTION ====================
+    def _common_send(
+        self,
+        sms_type: str,
+        template: str,
+        customer_name: str,
+        customer_phone: str,
+        consignment_number: str = "",
+        delivery_date=None
+    ) -> bool:
+        """
+        Common internal send logic — InTransit aur Delivered dono use karte hain.
+        sms_type: 'InTransit' ya 'Delivered' — logging ke liye
+        """
+        if not self.enabled:
+            logger.warning(f"[MOBILE MESSAGE] ⏭️  {sms_type} SMS skipped - service disabled")
+            return False
+
+        if not customer_phone or not customer_phone.strip():
+            logger.warning(f"[MOBILE MESSAGE] ⏭️  {sms_type} SMS skipped - no phone number")
+            return False
+
+        if not self._should_send_now(delivery_date):
+            return False
+
+        try:
+            formatted_phone = self._format_phone_number(customer_phone)
+            message         = self._format_message(template, customer_name, consignment_number)
+
+            logger.info("=" * 80)
+            logger.info(f"[MOBILE MESSAGE] 📱 Sending {sms_type} SMS...")
+            logger.info(f"  Customer        : {customer_name}")
+            logger.info(f"  Original Phone  : {customer_phone}")
+            logger.info(f"  Formatted Phone : {formatted_phone}")
+            logger.info(f"  Consignment     : {consignment_number}")
+            logger.info(f"  Delivery Date   : {delivery_date}")
+            logger.info(f"  Tracking Link   : {self._generate_tracking_link(consignment_number)}")
+            logger.info(f"  Message Length  : {len(message)} chars")
+            logger.info(f"  Mode            : {'TESTING' if self.testing_mode else 'PRODUCTION'}")
+            logger.info("-" * 80)
+            logger.info(f"  Message Preview:\n{message}")
+            logger.info("-" * 80)
+
+            result = self._send_sms_api(formatted_phone, message, consignment_number)
+
+            if result:
+                logger.info(f"[MOBILE MESSAGE] ✅ {sms_type} SMS SENT SUCCESSFULLY")
+            else:
+                logger.error(f"[MOBILE MESSAGE] ❌ {sms_type} SMS SEND FAILED")
+
+            logger.info("=" * 80)
+            return result
+
+        except Exception as e:
+            logger.error("=" * 80)
+            logger.error(f"[MOBILE MESSAGE] ❌ {sms_type} SMS ERROR")
+            logger.error(f"  Customer : {customer_name}")
+            logger.error(f"  Phone    : {customer_phone}")
+            logger.error(f"  Error    : {e}")
+            logger.error("=" * 80)
+            return False
+
+    # ==================== PUBLIC SEND FUNCTIONS ====================
+
+    def send_intransit_notification(
+        self,
+        customer_name: str,
+        customer_phone: str,
+        consignment_number: str = "",
+        delivery_date=None
+    ) -> bool:
+        """
+        TransVirtual webhook se trigger — InTransit status
+        Courier ne factory se order utha liya → "Order is on its way" SMS
+
+        Template (config se):
+            intransit_template:
+            "Hi {customer_name}, great news! Your Tommy Sugo order is on its way.
+            Please pop it in the freezer on arrival.
+            Track: {tracking_link}"
+
+        Args:
+            customer_name:      Customer ka naam (TransVirtual ReceiverName)
+            customer_phone:     Customer ka phone (TransVirtual ReceiverPhone)
+            consignment_number: Consignment number
+            delivery_date:      TransVirtual DateTime string ('YYYY-MM-DD HH:MM')
+
+        Returns:
+            True if SMS sent successfully, False otherwise
+        """
+        return self._common_send(
+            sms_type='InTransit',
+            template=self.intransit_template,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            consignment_number=consignment_number,
+            delivery_date=delivery_date
+        )
+
+    def send_delivered_notification(
+        self,
+        customer_name: str,
+        customer_phone: str,
+        consignment_number: str = "",
+        delivery_date=None
+    ) -> bool:
+        """
+        TransVirtual webhook se trigger — Delivered status
+        Order customer tak pahunch gaya → "Order has been delivered" SMS
+
+        Template (config se):
+            delivered_template:
+            "Hi {customer_name}, your Tommy Sugo order has been delivered.
+            Please check your SMS link for arrival confirmation.
+            Thank you & enjoy! Nathan & Team :-)
+            Track: {tracking_link}"
+
+        Args:
+            customer_name:      Customer ka naam (TransVirtual ReceiverName)
+            customer_phone:     Customer ka phone (TransVirtual ReceiverPhone)
+            consignment_number: Consignment number
+            delivery_date:      TransVirtual DateTime string ('YYYY-MM-DD HH:MM')
+
+        Returns:
+            True if SMS sent successfully, False otherwise
+        """
+        return self._common_send(
+            sms_type='Delivered',
+            template=self.delivered_template,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            consignment_number=consignment_number,
+            delivery_date=delivery_date
+        )
 
     def send_delivery_notification(
         self,
@@ -202,75 +341,23 @@ class MobileMessageService:
         delivery_date=None
     ) -> bool:
         """
-        Send delivery notification SMS to customer with tracking link.
-
-        Called from:
-          - TransVirtual webhook (InTransit / Delivered) — main.py
-          - Manual trigger endpoint — _process_notifications()
-
-        Behavior:
-          TESTING MODE  → sends real SMS immediately (no date check)
-          PRODUCTION MODE → sends SMS only if today (Perth) == delivery_date
-
-        Args:
-            customer_name:      Customer's name
-            customer_phone:     Customer's phone number (from TransVirtual ReceiverPhone)
-            consignment_number: Consignment number
-            invoice_no:         Invoice/consignment number for logging
-            delivery_date:      Delivery date — TransVirtual DateTime string or Jotform dict
-
-        Returns:
-            True if SMS sent successfully, False otherwise
+        DEPRECATED — v14.6 se yeh function purana ho gaya.
+        Backward compatibility ke liye rakha hai.
+        Naye code mein send_intransit_notification() ya send_delivered_notification() use karo.
+        Yeh function intransit_template use karta hai by default.
         """
-        if not self.enabled:
-            logger.warning("[MOBILE MESSAGE] ⏭️  SMS skipped - service disabled")
-            return False
-
-        if not customer_phone or not customer_phone.strip():
-            logger.warning(f"[MOBILE MESSAGE] ⏭️  SMS skipped - no phone number for {invoice_no or consignment_number}")
-            return False
-
-        # Date/mode check
-        if not self._should_send_now(delivery_date):
-            return False
-
-        try:
-            formatted_phone = self._format_phone_number(customer_phone)
-            message         = self._format_message(customer_name, consignment_number)
-
-            logger.info("=" * 80)
-            logger.info("[MOBILE MESSAGE] 📱 Sending SMS...")
-            logger.info(f"  Invoice/Consignment : {invoice_no or consignment_number}")
-            logger.info(f"  Customer            : {customer_name}")
-            logger.info(f"  Original Phone      : {customer_phone}")
-            logger.info(f"  Formatted Phone     : {formatted_phone}")
-            logger.info(f"  Consignment         : {consignment_number}")
-            logger.info(f"  Delivery Date       : {delivery_date}")
-            logger.info(f"  Tracking Link       : {self._generate_tracking_link(consignment_number)}")
-            logger.info(f"  Message Length      : {len(message)} chars")
-            logger.info(f"  Mode                : {'TESTING' if self.testing_mode else 'PRODUCTION'}")
-            logger.info("-" * 80)
-            logger.info(f"  Message Preview:\n{message}")
-            logger.info("-" * 80)
-
-            result = self._send_sms_api(formatted_phone, message, invoice_no or consignment_number)
-
-            if result:
-                logger.info("[MOBILE MESSAGE] ✅ SMS SENT SUCCESSFULLY")
-            else:
-                logger.error("[MOBILE MESSAGE] ❌ SMS SEND FAILED")
-
-            logger.info("=" * 80)
-            return result
-
-        except Exception as e:
-            logger.error("=" * 80)
-            logger.error(f"[MOBILE MESSAGE] ❌ SMS ERROR")
-            logger.error(f"  Customer : {customer_name}")
-            logger.error(f"  Phone    : {customer_phone}")
-            logger.error(f"  Error    : {e}")
-            logger.error("=" * 80)
-            return False
+        logger.warning(
+            "[MOBILE MESSAGE] ⚠️  send_delivery_notification() DEPRECATED — "
+            "use send_intransit_notification() or send_delivered_notification() instead"
+        )
+        return self._common_send(
+            sms_type='Delivery (deprecated)',
+            template=self.intransit_template,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            consignment_number=consignment_number or invoice_no,
+            delivery_date=delivery_date
+        )
 
     # ==================== API CALL ====================
 

@@ -31,7 +31,8 @@
     "username": "",
     "password": "",
     "sender_id": "TommySugo",
-    "message_template": "Hi {customer_name},\nYour Tommy Sugo order is now out for delivery and will be arriving at your location shortly.\n\nTo maintain the best quality, we kindly recommend bringing the products inside as soon as they arrive and placing them straight into the freezer.\n\nYou can track your delivery here:\n{tracking_link}\n\nThank you for choosing Tommy Sugo.\n\nWarm regards,\nNathan and the Tommy Sugo Team"
+    "intransit_template": "Hi {customer_name}, great news! Your Tommy Sugo order is on its way. Please pop it in the freezer on arrival.\n\nTrack: {tracking_link}",
+    "delivered_template": "Hi {customer_name}, your Tommy Sugo order has been delivered. Please check your SMS link for arrival confirmation. Thank you & enjoy! Nathan & Team :-)\n\nTrack: {tracking_link}"
   },
   "schedule": {
     "factory_batch": {
@@ -89,17 +90,17 @@
         "value_x_offset": 80,
         "line_height": 14,
         "fields_normal_order": [
-          {"key": "customer_name",    "label": "To:",              "show": true, "highlight": false, "order": 1},
-          {"key": "customer_phone",   "label": "Phone No:",        "show": true, "highlight": false, "order": 2},
-          {"key": "delivery_address", "label": "Address:",         "show": true, "highlight": false, "order": 3},
-          {"key": "courier_note",     "label": "Note for courier:","show": true, "highlight": false, "order": 4}
+          {"key": "customer_name",    "label": "To:",               "show": true, "highlight": false, "order": 1},
+          {"key": "customer_phone",   "label": "Phone No:",         "show": true, "highlight": false, "order": 2},
+          {"key": "delivery_address", "label": "Address:",          "show": true, "highlight": false, "order": 3},
+          {"key": "courier_note",     "label": "Note for courier:", "show": true, "highlight": false, "order": 4}
         ],
         "fields_gift_order": [
-          {"key": "gift_recipient",      "label": "To:",              "show": true, "highlight": false, "order": 1},
-          {"key": "gift_phone",          "label": "Contact No:",      "label_dynamic": false, "show": true, "highlight": false, "order": 2},
-          {"key": "delivery_address",    "label": "Address:",         "show": true, "highlight": false, "order": 3},
-          {"key": "customer_name_phone", "label": "Order by:",        "show": true, "highlight": false, "order": 4, "combined_format": "{customer_name} | {customer_phone}"},
-          {"key": "courier_note",        "label": "Note for courier:","show": true, "highlight": false, "order": 5}
+          {"key": "gift_recipient",      "label": "To:",               "show": true, "highlight": false, "order": 1},
+          {"key": "gift_phone",          "label": "Contact No:",       "label_dynamic": false, "show": true, "highlight": false, "order": 2},
+          {"key": "delivery_address",    "label": "Address:",          "show": true, "highlight": false, "order": 3},
+          {"key": "customer_name_phone", "label": "Order by:",         "show": true, "highlight": false, "order": 4, "combined_format": "{customer_name} | {customer_phone}"},
+          {"key": "courier_note",        "label": "Note for courier:", "show": true, "highlight": false, "order": 5}
         ]
       },
       "recommendation": {

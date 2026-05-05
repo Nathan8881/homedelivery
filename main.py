@@ -10,6 +10,9 @@ FIXES HISTORY:
   v14.5 - SMS added to TransVirtual webhook (InTransit + Delivered)
          - SMS bhi email ki tarah Perth date filter follow karta hai
          - ReceiverPhone TransVirtual payload se directly use hota hai
+  v14.6 - SMS: send_delivery_notification() deprecated
+         - InTransit → send_intransit_notification()
+         - Delivered → send_delivered_notification()
 """
 from fastapi import FastAPI, Request, HTTPException
 import os
@@ -53,7 +56,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ==================== FASTAPI APP ====================
-app = FastAPI(title="Home Delivery - Railway Compatible", version="14.5")
+app = FastAPI(title="Home Delivery - Railway Compatible", version="14.6")
 
 # ==================== GLOBAL INSTANCES ====================
 base_path = Path(__file__).parent
@@ -191,9 +194,6 @@ def send_batch() -> dict:
         return {"status": "failed", "sent": 0, "kept": len(queued_items)}
 
 
-
-
-
 # ==================== STARTUP / SHUTDOWN ====================
 
 @app.on_event("startup")
@@ -215,7 +215,7 @@ async def startup_event():
         perth_now = datetime.now(PERTH_TZ)
         logger.info("=" * 80)
         logger.info("APPLICATION STARTED SUCCESSFULLY")
-        logger.info(f"Version       : 14.5 (SMS added to TransVirtual webhook)")
+        logger.info(f"Version       : 14.6 (SMS: intransit + delivered alag functions)")
         logger.info(f"Google Drive  : {'✅ ENABLED' if google_drive_service.enabled else '❌ DISABLED'}")
         logger.info(f"Resend Email  : {'✅ ENABLED' if resend_service.enabled else '❌ DISABLED'}")
         logger.info(f"SMS Service   : {'✅ ENABLED' if sms_service.enabled else '❌ DISABLED'}")
@@ -307,8 +307,6 @@ async def webhook_handler(request: Request):
             barcode_path = generate_barcode(transvirtual_result['barcode_number'], base_path / 'barcodes')
         else:
             logger.warning("[WARNING] No Transvirtual barcode")
-
-
 
         # PDF & DOCX
         pdf_path  = create_packing_slip_pdf(order_data, config, barcode_path, base_path)
@@ -414,7 +412,7 @@ async def transvirtual_status_webhook(request: Request):
         status             = data.get('Status', '')
         receiver_name      = data.get('ReceiverName', '')
         receiver_email     = data.get('ReceiverEmail', '')
-        receiver_phone     = data.get('ReceiverPhone', '')   # ✅ v14.5: SMS ke liye
+        receiver_phone     = data.get('ReceiverPhone', '')
         date_time          = data.get('DateTime', '')
         comment            = data.get('Comment', '')
 
@@ -480,7 +478,7 @@ async def transvirtual_status_webhook(request: Request):
                 if is_testing:
                     email_sent = resend_service.send_intransit_notification(
                         customer_name=target_name,
-                        customer_email="",          # testing mode mein ignore — service test_emails use karti hai
+                        customer_email="",
                         consignment_number=consignment_number,
                     )
                     logger.info(f"[TRANSVIRTUAL WEBHOOK] 🧪 InTransit email sent | sent: {email_sent}")
@@ -494,15 +492,14 @@ async def transvirtual_status_webhook(request: Request):
             else:
                 logger.warning("[TRANSVIRTUAL WEBHOOK] ⚠️  Email service disabled - InTransit email skip")
 
-            # SMS — v14.5 NEW
+            # SMS — v14.6: send_intransit_notification() use karo
             if sms_service and sms_service.enabled:
                 if receiver_phone:
-                    sms_sent = sms_service.send_delivery_notification(
+                    sms_sent = sms_service.send_intransit_notification(
                         customer_name=target_name,
                         customer_phone=receiver_phone,
                         consignment_number=consignment_number,
-                        invoice_no=consignment_number,
-                        delivery_date=date_time,    # Perth date filter already passed above
+                        delivery_date=date_time,
                     )
                     logger.info(f"[TRANSVIRTUAL WEBHOOK] 📱 InTransit SMS | sent: {sms_sent}")
                 else:
@@ -519,7 +516,7 @@ async def transvirtual_status_webhook(request: Request):
                 if is_testing:
                     email_sent = resend_service.send_delivered_notification(
                         customer_name=target_name,
-                        customer_email="",          # testing mode mein ignore — service test_emails use karti hai
+                        customer_email="",
                         consignment_number=consignment_number,
                     )
                     logger.info(f"[TRANSVIRTUAL WEBHOOK] 🧪 Delivered email sent | sent: {email_sent}")
@@ -533,15 +530,14 @@ async def transvirtual_status_webhook(request: Request):
             else:
                 logger.warning("[TRANSVIRTUAL WEBHOOK] ⚠️  Email service disabled - Delivered email skip")
 
-            # SMS — v14.5 NEW
+            # SMS — v14.6: send_delivered_notification() use karo
             if sms_service and sms_service.enabled:
                 if receiver_phone:
-                    sms_sent = sms_service.send_delivery_notification(
+                    sms_sent = sms_service.send_delivered_notification(
                         customer_name=target_name,
                         customer_phone=receiver_phone,
                         consignment_number=consignment_number,
-                        invoice_no=consignment_number,
-                        delivery_date=date_time,    # Perth date filter already passed above
+                        delivery_date=date_time,
                     )
                     logger.info(f"[TRANSVIRTUAL WEBHOOK] 📱 Delivered SMS | sent: {sms_sent}")
                 else:
@@ -613,7 +609,7 @@ async def root():
 
     return {
         "status"      : "online",
-        "version"     : "14.5 - Email + SMS via TransVirtual webhook",
+        "version"     : "14.6 - SMS alag functions: intransit + delivered",
         "perth_time"  : perth_now.strftime('%Y-%m-%d %H:%M:%S %Z'),
         "google_drive": "enabled" if google_drive_service.enabled else "disabled",
         "email"       : {
