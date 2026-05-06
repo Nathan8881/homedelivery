@@ -32,7 +32,7 @@
     "password": "",
     "sender_id": "TommySugo",
     "intransit_template": "Hi {customer_name}, great news! Your Tommy Sugo order is on its way. Please pop it in the freezer on arrival.\n\nTrack: {tracking_link}",
-    "delivered_template": "Hi {customer_name}, your Tommy Sugo order has been delivered. Please check your SMS link for arrival confirmation. Thank you & enjoy! Nathan & Team :-)\n\nTrack: {tracking_link}"
+    "delivered_template": "Hi {customer_name}, your Tommy Sugo order has been delivered. Please check your SMS link for arrival confirmation. Thank you & enjoy! Nathan & Team :-)"
   },
   "schedule": {
     "factory_batch": {
