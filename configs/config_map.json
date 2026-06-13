@@ -13,6 +13,14 @@
       "description": "Home delivery customer orders with Transvirtual integration"
     }
 
+    {
+  "forms": {
+    "260838401327455": {
+      "name": "christ the king 2026",
+      "config_file": "home_delivery.json",
+      "description": "Home delivery customer orders with Transvirtual integration"
+    }
+
   },
   "default_config": "home_delivery.json"
 }
