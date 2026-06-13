@@ -133,7 +133,7 @@ def setup_scheduler():
     for t in factory_times:
         scheduler.add_job(
             scheduled_send_batch,
-            CronTrigger(hour=t['hour'], minute=t['minute'], timezone=PERTH_TZ),
+            CronTrigger(hour=t['hour'], minute=t['minute'],day_of_week='mon-thu', timezone=PERTH_TZ),
             id=f"factory_batch_{t['hour']}_{t['minute']}",
             name=f"Factory Batch - {t['label']}",
             replace_existing=True
