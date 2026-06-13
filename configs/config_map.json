@@ -4,23 +4,17 @@
       "name": "Home Delivery Order Form",
       "config_file": "home_delivery.json",
       "description": "Home delivery customer orders with Transvirtual integration"
-    }
-{
-  "forms": {
+    },
     "261331425829861": {
       "name": "vital gym",
       "config_file": "home_delivery.json",
       "description": "Home delivery customer orders with Transvirtual integration"
-    }
-
-    {
-  "forms": {
+    },
     "260838401327455": {
       "name": "christ the king 2026",
       "config_file": "home_delivery.json",
       "description": "Home delivery customer orders with Transvirtual integration"
     }
-
   },
   "default_config": "home_delivery.json"
 }
